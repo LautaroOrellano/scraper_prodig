@@ -1,4 +1,4 @@
-# scraper/stealth_context.py
+'''# scraper/stealth_context.py
 import random
 import time
 from typing import Optional, Dict
@@ -178,4 +178,4 @@ if __name__ == "__main__":
         page.goto("https://www.instagram.com/")
         print("URL actual:", page.url)
         time.sleep(3)
-        ctx.close()
+        ctx.close()'''
