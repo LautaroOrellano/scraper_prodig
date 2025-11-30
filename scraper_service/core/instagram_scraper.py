@@ -2,7 +2,7 @@ import time
 import random
 from playwright.sync_api import Page
 # Asegúrate de que esta importación apunte a tu archivo correcto
-from  scraper.utils.human_mouse import human_move_to_element
+from browser.humanizer.human_mouse import human_move_to_element
 
 
 def scrape_instagram_profile(page: Page):
