@@ -1,11 +1,11 @@
 from playwright.sync_api import sync_playwright
-from scraper.google_finder import google_search_social
-from scraper.stealth_context import create_stealth_persistent_context, STEALTH_JS
+from scraper_service import find_instagram_profile
+from scraper_service import  create_stealth_persistent_context, STEALTH_JS
 
 
 def run_scraper():
     business = {
-        "nombre": "Formitas",
+        "nombre": "mar de salina",
         "ciudad": "Mar del Plata",
         "pais": "Argentina",
         "categoria": "Rebosado"
@@ -24,7 +24,7 @@ def run_scraper():
         page = context.new_page()
 
         print("\n🔎 Scrapeando Instagram...")
-        instagram_data = google_search_social(page, business, tipo="instagram")
+        instagram_data = find_instagram_profile(page, business, tipo="instagram")
 
         print("\n📌 DATOS FINALES:")
         print(instagram_data)
