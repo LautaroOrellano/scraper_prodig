@@ -1,117 +1,105 @@
-from playwright.sync_api import Page
-from browser.humanizer.human_mouse import human_move_to_element
-from browser.humanizer.human_typing import human_type
-from scraper_service.core.instagram_scraper import scrape_instagram_profile
 import time
+import random
+from playwright.sync_api import Page
+from scraper_services.core.instagram_scraper import find_instagram_profile
+from scraper_services.core.facebook_scraper import find_facebook_page
 
 
 class GoogleProfileSearcher:
 
-    def __init__(self, human_delay=(1.2, 2.6)):
-        self.min_delay, self.max_delay = human_delay
+    def __init__(self, delay=(1.2, 2.3)):
+        self.dmin, self.dmax = delay
 
-    def _human_idle(self):
-        """Pequeña pausa humana aleatoria."""
-        import random
-        time.sleep(random.uniform(self.min_delay, self.max_delay))
+    def wait(self):
+        time.sleep(random.uniform(self.dmin, self.dmax))
 
-    def _google_search(self, page: Page, query: str) -> list:
-        """
-        Hace una búsqueda en Google y devuelve una lista de links candidatos.
-        """
-
+    # ---------------------------
+    def google_search(self, page: Page, query: str):
         print(f"🔍 Buscando en Google: {query}")
+        page.goto("https://www.google.com/?hl=es")
 
-        page.goto("https://www.google.com/webhp?hl=es")
-
-        # Aceptar cookies si aparecen
         try:
-            cookie_btn = page.locator("button:has-text('Aceptar todo')")
-            if cookie_btn.is_visible():
-                cookie_btn.click()
+            btn = page.locator("button:has-text('Aceptar todo')")
+            if btn.is_visible():
+                btn.click()
         except:
             pass
 
-        # Input de búsqueda
-        try:
-            page.wait_for_selector("textarea[name='q']", timeout=6000)
-            page.click("textarea[name='q']")
-            human_type(page, query)
-            page.keyboard.press("Enter")
-        except Exception as e:
-            print(f"⚠️ Error en búsqueda Google: {e}")
-            return []
+        page.wait_for_selector("textarea[name='q']")
+        page.click("textarea[name='q']")
+        page.keyboard.type(query, delay=80)
+        page.keyboard.press("Enter")
 
-        page.wait_for_selector("#search", timeout=15000)
-        self._human_idle()
+        page.wait_for_selector("#search")
+        self.wait()
 
-        links = page.locator("#search a").all()
-        candidates = []
+    # ---------------------------
+    def find_first_result(self, page: Page, domain: str):
+        links = page.locator("#search a")
+        total = links.count()
 
-        for link in links:
-            href = link.get_attribute("href")
-            if not href:
+        for i in range(min(40, total)):
+            href = links.nth(i).get_attribute("href") or ""
+            if domain in href and "maps" not in href and "google" not in href:
+                return href
+
+        return None
+
+    # ---------------------------
+    def open_tab(self, page: Page, url: str):
+        print(f"➡️ Abriendo: {url}")
+        tab = page.context.new_page()
+        tab.goto(url, timeout=30000)
+        return tab
+
+    # ---------------------------
+    def scrape_instagram(self, page: Page, empresa, ciudad):
+
+        queries = [
+            f"{empresa} {ciudad} instagram",
+            f"{empresa} instagram",
+            f"{empresa} {ciudad} ig"
+        ]
+
+        for q in queries:
+            self.google_search(page, q)
+            url = self.find_first_result(page, "instagram.com")
+            if not url:
                 continue
 
-            if ("instagram.com" in href and
-                "/p/" not in href and
-                "google" not in href):
-                candidates.append(link)
+            tab = self.open_tab(page, url)
+            try:
+                data = find_instagram_profile(tab)
+            finally:
+                tab.close()
 
-        return candidates
+            if data and data.get("username"):
+                return {"success": True, "data": data, "url": url}
 
-    def find_instagram_profile(self, page: Page, queries: list):
-        """
-        Prueba múltiples queries hasta encontrar un perfil válido.
-        """
+        return {"success": False}
 
-        for query in queries:
+    # ---------------------------
+    def scrape_facebook(self, page: Page, empresa, ciudad):
 
-            candidates = self._google_search(page, query)
+        queries = [
+            f"{empresa} {ciudad} facebook",
+            f"{empresa} facebook",
+            f"{empresa} {ciudad} fb"
+        ]
 
-            if not candidates:
-                print(f"❌ No hubo candidatos con: {query}")
+        for q in queries:
+            self.google_search(page, q)
+            url = self.find_first_result(page, "facebook.com")
+            if not url:
                 continue
 
-            for link in candidates:
-                box = link.bounding_box()
-                href = link.get_attribute("href")
+            tab = self.open_tab(page, url)
+            try:
+                data = find_facebook_page(tab)
+            finally:
+                tab.close()
 
-                print(f"🎯 Candidato encontrado: {href}")
+            if data and data.get("page_name"):
+                return {"success": True, "data": data, "url": url}
 
-                if not box:
-                    continue
-
-                # Movimiento humano
-                human_move_to_element(page, box, 100, 100)
-                time.sleep(0.3)
-
-                with page.expect_navigation(timeout=30000):
-                    page.mouse.click(box["x"] + 10, box["y"] + 10)
-
-                self._human_idle()
-
-                # login wall
-                if "login" in page.url:
-                    print("⛔ Login wall detectado.")
-                    # seguimos scrapeando igual
-
-                # Scraper Instagram
-                data = scrape_instagram_profile(page)
-
-                if data and data.get("username"):
-                    print("✅ Perfil válido encontrado")
-                    return {
-                        "success": True,
-                        "selected_query": query,
-                        "candidate_url": href,
-                        "instagram_data": data
-                    }
-
-                print("❌ Este candidato no era un perfil válido.")
-
-        return {
-            "success": False,
-            "error": "no_profile_found",
-            "instagram_data": None
-        }
+        return {"success": False}
