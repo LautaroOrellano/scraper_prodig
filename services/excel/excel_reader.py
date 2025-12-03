@@ -12,7 +12,7 @@ class ExcelReader:
         self.required_columns = required_columns or [
             "name",
             "formatted_address",
-            "formatted_phone",
+            "formatted_phone_number",
             "website"
         ]
 
